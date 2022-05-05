@@ -4,9 +4,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import SVC
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.metrics import f1_score
 
 lines: list
@@ -89,13 +90,13 @@ class Classifiers:
         print("Calculating SVD....")
         # changed from 100 to 426 (max components)
         # runtime went up to 474.81s ----> 0.87
-        svd = TruncatedSVD(n_components=426)
+        svd = TruncatedSVD(n_components=400)
         self.X_train = svd.fit_transform(self.X_train)
         self.X_test = svd.transform(self.X_test)
         self.Y_test = svd.transform(self.Y_test)
         print("Training matrix shape = {}".format(self.X_train.shape))
-        print("Training matrix shape = {}".format(self.X_test.shape))
-        print("Training matrix shape = {}".format(self.Y_test.shape))
+        print("validation matrix shape = {}".format(self.X_test.shape))
+        print("Testing matrix shape = {}".format(self.Y_test.shape))
         print("Time elapsed to clean-up data = {:.2f}".format(time.process_time() - self.start))
         print("-" * 75)
 
@@ -106,7 +107,8 @@ class Classifiers:
         if alg == 'svm':
             print("implementing SVM...")
             # changed SVC C from 10 to 1
-            svm = SVC(kernel='rbf', C=100, gamma=1e1, tol=1e-5, probability=True, random_state=0, break_ties=True)
+            # changed C to 10 and gamma to 0.1 with random state = 42
+            svm = SVC(kernel='rbf', C=10, gamma=0.1, tol=1e-3, probability=True, random_state=42, break_ties=True)
             svm.fit(self.X_train, train_labels)
             val_prediction = svm.predict(self.X_test)  # back-testing
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
@@ -123,7 +125,7 @@ class Classifiers:
         elif alg == 'dt':  # decision tree
             print("implementing decision tree...")
             predictor = SVC()
-            decision_tree = GridSearchCV(predictor, {'kernel': ('linear', 'rbf'), 'C': [.001, 1000], 'gamma': [10]})
+            decision_tree = GridSearchCV(predictor, {'kernel': ('linear', 'rbf'), 'C': [.1, 10], 'gamma': [0.1]})
             decision_tree.fit(self.X_train, train_labels)
             val_prediction = decision_tree.predict(self.X_test)  # back-testing
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
@@ -139,7 +141,7 @@ class Classifiers:
             print("Runtime for SVM = {:.2f}".format(time.process_time() - self.start))
         elif alg == 'knn':  # KNN
             print("implement K nearest neighbors ...")
-            k = 7
+            k = 3  # k=3 gives the highest prediction
             knn = KNeighborsClassifier(n_neighbors=k)
             knn.fit(self.X_train, train_labels)
             val_prediction = knn.predict(self.X_test)  # back-testing
@@ -154,7 +156,25 @@ class Classifiers:
             print(self.predictions.shape)
             print(self.predictions)
             print("Runtime for SVM = {:.2f}".format(time.process_time() - self.start))
-            pass
+        elif alg == 'bc':  # boosting classifier
+            print("implement gradient boosting classifier...")
+            # n_estimator of 100 ----> 0.87
+            cg = GradientBoostingClassifier(n_estimators=200, learning_rate=1.0, max_depth=2, random_state=0,
+                                            max_features='auto')
+            cg.fit(self.X_train, train_labels)
+            val_prediction = cg.predict(self.X_test)  # back-testing
+            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
+            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'macro'))
+            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'weighted'))
+            print("F1-score (micro) = {:.2f}".format(self.f1_scores[0]))
+            print("F1-score (macro) = {:.2f}".format(self.f1_scores[1]))
+            print("F1-score (weighted) = {:.2f}".format(self.f1_scores[2]))
+            print("predictor initialized...")
+            self.predictions = cg.predict(self.Y_test)  # y_test
+            print(self.predictions.shape)
+            print(self.predictions)
+            print("Runtime for SVM = {:.2f}".format(time.process_time() - self.start))
+
         with open(output, "w") as file:
             for score in self.predictions:
                 file.write(str(score) + "\n")
@@ -167,4 +187,4 @@ class Classifiers:
 if __name__ == '__main__':
     classifier = Classifiers("adult_train_CS584.csv", "adult_test_CS584.csv")
     classifier.vectorize()
-    classifier.train()
+    classifier.train('bc', "prediction_boosted_classifier.txt")
