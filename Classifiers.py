@@ -7,7 +7,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.metrics import f1_score
 
 lines: list
@@ -174,6 +174,22 @@ class Classifiers:
             print(self.predictions.shape)
             print(self.predictions)
             print("Runtime for SVM = {:.2f}".format(time.process_time() - self.start))
+        elif alg == 'rf':
+            print("implementing random forest classifier...")
+            rf = RandomForestClassifier(n_estimators=200, random_state=42)
+            rf.fit(self.X_train, train_labels)
+            val_prediction = rf.predict(self.X_test)  # back-testing
+            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
+            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'macro'))
+            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'weighted'))
+            print("F1-score (micro) = {:.2f}".format(self.f1_scores[0]))
+            print("F1-score (macro) = {:.2f}".format(self.f1_scores[1]))
+            print("F1-score (weighted) = {:.2f}".format(self.f1_scores[2]))
+            print("predictor initialized...")
+            self.predictions = rf.predict(self.Y_test)
+            print(self.predictions.shape)
+            print(self.predictions)
+            print("Runtime for SVM = {:.2f}".format(time.process_time() - self.start))
 
         with open(output, "w") as file:
             for score in self.predictions:
@@ -187,4 +203,5 @@ class Classifiers:
 if __name__ == '__main__':
     classifier = Classifiers("adult_train_CS584.csv", "adult_test_CS584.csv")
     classifier.vectorize()
-    classifier.train('bc', "prediction_boosted_classifier.txt")
+    # classifier.train('bc', "prediction_boosted_classifier.txt")
+    classifier.train('rf', "prediction_random_forest_classifier.txt")
