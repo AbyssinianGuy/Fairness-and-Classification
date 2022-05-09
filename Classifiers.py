@@ -29,7 +29,8 @@ def read_dataset(file: str, is_train=True):
             lines = [dt for dt in train_data]
         classes = []
         classes2 = []
-        train_list, validation_list = split_training_set(lines)
+
+        train_list, validation_list = split_training_set(remove_biased_cols(lines))
         for i in range(1, len(train_list)):
             if len(train_list[i][-1]) == 5:
                 classes.append(1)
@@ -41,11 +42,11 @@ def read_dataset(file: str, is_train=True):
             else:
                 classes2.append(0)
         train_labels = np.array(classes)
-        train_features_copy = np.array(train_list)
+        train_features_copy = np.array(remove_biased_cols(lines))
         train_features = np.array(
             [" ".join(train_list[i][:-1]) for i in range(1, len(train_list))])  # remove the last column
         validation_labels = np.array(classes2)  # used for back-testing
-        validation_features_copy = np.array(validation_list)
+        validation_features_copy = np.array(remove_biased_cols(validation_list))
         validation_features = np.array([" ".join(validation_list[i][:-1]) for i in range(1, len(validation_list))])
     else:
         with open(file, "r") as csv_file:
@@ -62,6 +63,13 @@ def split_training_set(x: list):
     return x[:size], x[size:]
 
 
+def remove_biased_cols(x: list):
+    trimmed = []
+    for pts in x:
+        trimmed.append([pts[i] for i in range(len(pts)) if i != 7 and i != 8])
+    return trimmed
+
+
 # read_dataset("adult_train_CS584.csv")
 # read_dataset("adult_test_CS584.csv", False)
 # print(test_labels)
@@ -74,6 +82,7 @@ class Classifiers:
         self.X_train = None  # training matrix
         self.X_test = None  # validation for back testing
         self.Y_test = None  # testing matrix
+        self.val_predictions = None
         self.predictions = None
         print("train_features {}".format(train_features.shape))
         print("validation_features {}".format(validation_features.shape))
@@ -115,10 +124,10 @@ class Classifiers:
             # changed C to 10 and gamma to 0.1 with random state = 42
             svm = SVC(kernel='rbf', C=10, gamma=0.1, tol=1e-3, probability=True, random_state=42, break_ties=True)
             svm.fit(self.X_train, train_labels)
-            val_prediction = svm.predict(self.X_test)  # back-testing
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'macro'))
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'weighted'))
+            self.val_predictions = svm.predict(self.X_test)  # back-testing
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions))
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions, 'macro'))
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions, 'weighted'))
             print("F1-score (micro) = {:.2f}".format(self.f1_scores[0]))
             print("F1-score (macro) = {:.2f}".format(self.f1_scores[1]))
             print("F1-score (weighted) = {:.2f}".format(self.f1_scores[2]))
@@ -132,12 +141,12 @@ class Classifiers:
             self.start = time.process_time()
             predictor = SVC()
             decision_tree = GridSearchCV(predictor,
-                                         {'kernel': ('linear', 'rbf'), 'C': [.1, 10], 'gamma': [0.1], 'tol': [1e-3]})
+                                         {'kernel': ('linear', 'rbf'), 'C': [10], 'gamma': [0.1], 'tol': [1e-3]})
             decision_tree.fit(self.X_train, train_labels)
-            val_prediction = decision_tree.predict(self.X_test)  # back-testing
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'macro'))
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'weighted'))
+            self.val_predictions = decision_tree.predict(self.X_test)  # back-testing
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions))
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions, 'macro'))
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions, 'weighted'))
             print("F1-score (micro) = {:.2f}".format(self.f1_scores[3]))
             print("F1-score (macro) = {:.2f}".format(self.f1_scores[4]))
             print("F1-score (weighted) = {:.2f}".format(self.f1_scores[5]))
@@ -152,10 +161,10 @@ class Classifiers:
             k = 3  # k=3 gives the highest prediction
             knn = KNeighborsClassifier(n_neighbors=k)
             knn.fit(self.X_train, train_labels)
-            val_prediction = knn.predict(self.X_test)  # back-testing
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'macro'))
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'weighted'))
+            self.val_predictions = knn.predict(self.X_test)  # back-testing
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions))
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions, 'macro'))
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions, 'weighted'))
             print("F1-score (micro) = {:.2f}".format(self.f1_scores[6]))
             print("F1-score (macro) = {:.2f}".format(self.f1_scores[7]))
             print("F1-score (weighted) = {:.2f}".format(self.f1_scores[8]))
@@ -171,10 +180,10 @@ class Classifiers:
             cg = GradientBoostingClassifier(n_estimators=200, learning_rate=1.0, max_depth=2, random_state=0,
                                             max_features='auto')
             cg.fit(self.X_train, train_labels)
-            val_prediction = cg.predict(self.X_test)  # back-testing
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'macro'))
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'weighted'))
+            self.val_predictions = cg.predict(self.X_test)  # back-testing
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions))
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions, 'macro'))
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions, 'weighted'))
             print("F1-score (micro) = {:.2f}".format(self.f1_scores[9]))
             print("F1-score (macro) = {:.2f}".format(self.f1_scores[10]))
             print("F1-score (weighted) = {:.2f}".format(self.f1_scores[11]))
@@ -188,10 +197,10 @@ class Classifiers:
             self.start = time.process_time()
             rf = RandomForestClassifier(n_estimators=200, random_state=42)
             rf.fit(self.X_train, train_labels)
-            val_prediction = rf.predict(self.X_test)  # back-testing
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'macro'))
-            self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'weighted'))
+            self.val_predictions = rf.predict(self.X_test)  # back-testing
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions))
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions, 'macro'))
+            self.f1_scores.append(self.get_f1_score(validation_labels, self.val_predictions, 'weighted'))
             print("F1-score (micro) = {:.2f}".format(self.f1_scores[12]))
             print("F1-score (macro) = {:.2f}".format(self.f1_scores[13]))
             print("F1-score (weighted) = {:.2f}".format(self.f1_scores[14]))
@@ -213,7 +222,7 @@ class Classifiers:
 
     @staticmethod
     def plot(y):
-        filename = "f1-score.png"
+        filename = "f1-score-unbiased.png"
         x = np.array([1, 2, 3, 4, 5])
         x_ticks = ['svm', 'decision-tree', 'knn', 'boosted-classifier', 'random-forest']
         y1 = np.array([y[0], y[3], y[6], y[9], y[12]])  # micro
@@ -226,42 +235,50 @@ class Classifiers:
         plt.legend(loc='best')
         plt.savefig(filename)
 
-    @staticmethod
-    def fairness_diagnosis():
+    def fairness_diagnosis(self):
         # col 7 and 8 (race, sex)
         biased_cols = np.array(["race", "sex"])
         race = []  # from training
         sex = []
         for person in train_features_copy:
-            if person[7] == ' White' and person[-1] == " <=50K":
+            if person[7] == ' White' and person[-1] == " >50K":
                 race.append(1)
-            elif person[7] != ' White' and person[-1] == " <=50K":
+            elif person[7] != ' White' and person[-1] == " >50K":
                 race.append(0)
-            if person[8] == " Male" and person[-1] == " <=50K":
+            if person[8] == " Male" and person[-1] == " >50K":
                 sex.append(1)
-            elif person[8] != " Male" and person[-1] == " <=50K":
+            elif person[8] != " Male" and person[-1] == " >50K":
                 sex.append(0)
         race = np.array(race)
         sex = np.array(sex)
         whites = np.array([i for i in race if i == 1])
-        non_whites = np.array([i for i in race if i == 0])
         males = [i for i in sex if i == 1]
-        females = [i for i in sex if i == 0]
         print("white: {:.2f}%\t non-white: {:.2f}%".format(np.sum(whites) / train_features_copy.shape[0] * 100.,
-                                                             (int(race.shape[0]) - np.sum(whites)) /
-                                                             train_features_copy.shape[0] * 100.))
+                                                           (int(race.shape[0]) - np.sum(whites)) /
+                                                           train_features_copy.shape[0] * 100.))
         print("Male: {:.2f}%\t Female: {:.2f}%".format(np.sum(males) / train_features_copy.shape[0] * 100.,
-                                                         (int(sex.shape[0]) - np.sum(males)) /
-                                                         train_features_copy.shape[0] * 100.))
+                                                       (int(sex.shape[0]) - np.sum(males)) /
+                                                       train_features_copy.shape[0] * 100.))
+        # get all the 1s from val_predictions and check if they are whites or not
+        true_indices = [i for i in range(len(validation_features_copy)) if
+                        validation_features_copy[i][7] == " White" and validation_features_copy[i][-1] == " >50K"]
+        predicted_indexes = [i for i in range(len(self.val_predictions)) if self.val_predictions[i] == 1 and
+                             validation_features_copy[i][7] == " White"]
+        acc = 0
+        for index in predicted_indexes:
+            if true_indices.__contains__(index):
+                acc += 1
+        print("accuracy: ", acc / len(predicted_indexes) * 100)
+        # for the whites compare the val_predictions accuracy with the whites list
 
 
 if __name__ == '__main__':
     classifier = Classifiers("adult_train_CS584.csv", "adult_test_CS584.csv")
     classifier.vectorize()
+    classifier.train(output='prediction-svm-unbiased.txt')
+    classifier.train('dt', 'prediction_decision_tree_unbiased.txt')
+    classifier.train('knn', 'prediction_knn_unbiased.txt')
+    classifier.train('bc', "prediction_boosted_classifier_unbiased.txt")
+    classifier.train('rf', "prediction_random_forest_classifier_unbiased.txt")
     classifier.fairness_diagnosis()
-    # classifier.train(output='prediction-svm.txt')
-    # classifier.train('dt', 'prediction_decision_tree.txt')
-    # classifier.train('knn', 'prediction_knn.txt')
-    # classifier.train('bc', "prediction_boosted_classifier.txt")
-    # classifier.train('rf', "prediction_random_forest_classifier.txt")
-    # classifier.plot(classifier.f1_scores)
+    classifier.plot(classifier.f1_scores)
