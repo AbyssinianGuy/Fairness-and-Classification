@@ -97,7 +97,7 @@ class Classifiers:
         print("Training matrix shape = {}".format(self.X_train.shape))
         print("validation matrix shape = {}".format(self.X_test.shape))
         print("Testing matrix shape = {}".format(self.Y_test.shape))
-        print("Time elapsed to clean-up data = {:.2f}".format(time.process_time() - self.start))
+        print("Time elapsed to pre-process data = {:.2f}".format(time.process_time() - self.start))
         print("-" * 75)
 
     def train(self, alg='svm', output="prediction.txt"):
@@ -105,7 +105,8 @@ class Classifiers:
             self.vectorize()
         self.start = time.process_time()  # restart to measure runtime for classifiers
         if alg == 'svm':
-            print("implementing SVM...")
+            print("training with SVM...")
+            self.start = time.process_time()
             # changed SVC C from 10 to 1
             # changed C to 10 and gamma to 0.1 with random state = 42
             svm = SVC(kernel='rbf', C=10, gamma=0.1, tol=1e-3, probability=True, random_state=42, break_ties=True)
@@ -121,9 +122,10 @@ class Classifiers:
             self.predictions = svm.predict(self.Y_test)  # y_test
             print(self.predictions.shape)
             print(self.predictions)
-            print("Runtime for SVM = {:.2f}".format(time.process_time() - self.start))
+            print("Runtime for SVM = {:.2f} min".format((time.process_time() - self.start)/60.))
         elif alg == 'dt':  # decision tree
-            print("implementing decision tree...")
+            print("training with decision tree...")
+            self.start = time.process_time()
             predictor = SVC()
             decision_tree = GridSearchCV(predictor, {'kernel': ('linear', 'rbf'), 'C': [.1, 10], 'gamma': [0.1]})
             decision_tree.fit(self.X_train, train_labels)
@@ -131,16 +133,17 @@ class Classifiers:
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'macro'))
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'weighted'))
-            print("F1-score (micro) = {:.2f}".format(self.f1_scores[0]))
-            print("F1-score (macro) = {:.2f}".format(self.f1_scores[1]))
-            print("F1-score (weighted) = {:.2f}".format(self.f1_scores[2]))
+            print("F1-score (micro) = {:.2f}".format(self.f1_scores[3]))
+            print("F1-score (macro) = {:.2f}".format(self.f1_scores[4]))
+            print("F1-score (weighted) = {:.2f}".format(self.f1_scores[5]))
             print("predictor initialized...")
             self.predictions = decision_tree.predict(self.Y_test)  # y_test
             print(self.predictions.shape)
             print(self.predictions)
-            print("Runtime for SVM = {:.2f}".format(time.process_time() - self.start))
+            print("Runtime for decision tree = {:.2f} min".format((time.process_time() - self.start)/60.))
         elif alg == 'knn':  # KNN
-            print("implement K nearest neighbors ...")
+            print("training with K nearest neighbors ...")
+            self.start = time.process_time()
             k = 3  # k=3 gives the highest prediction
             knn = KNeighborsClassifier(n_neighbors=k)
             knn.fit(self.X_train, train_labels)
@@ -148,16 +151,17 @@ class Classifiers:
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'macro'))
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'weighted'))
-            print("F1-score (micro) = {:.2f}".format(self.f1_scores[0]))
-            print("F1-score (macro) = {:.2f}".format(self.f1_scores[1]))
-            print("F1-score (weighted) = {:.2f}".format(self.f1_scores[2]))
+            print("F1-score (micro) = {:.2f}".format(self.f1_scores[6]))
+            print("F1-score (macro) = {:.2f}".format(self.f1_scores[7]))
+            print("F1-score (weighted) = {:.2f}".format(self.f1_scores[8]))
             print("predictor initialized...")
             self.predictions = knn.predict(self.Y_test)  # y_test
             print(self.predictions.shape)
             print(self.predictions)
-            print("Runtime for SVM = {:.2f}".format(time.process_time() - self.start))
+            print("Runtime for knn = {:.2f} min".format((time.process_time() - self.start)/60.))
         elif alg == 'bc':  # boosting classifier
-            print("implement gradient boosting classifier...")
+            print("training with gradient boosting classifier...")
+            self.start = time.process_time()
             # n_estimator of 100 ----> 0.87
             cg = GradientBoostingClassifier(n_estimators=200, learning_rate=1.0, max_depth=2, random_state=0,
                                             max_features='auto')
@@ -166,30 +170,33 @@ class Classifiers:
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'macro'))
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'weighted'))
-            print("F1-score (micro) = {:.2f}".format(self.f1_scores[0]))
-            print("F1-score (macro) = {:.2f}".format(self.f1_scores[1]))
-            print("F1-score (weighted) = {:.2f}".format(self.f1_scores[2]))
+            print("F1-score (micro) = {:.2f}".format(self.f1_scores[9]))
+            print("F1-score (macro) = {:.2f}".format(self.f1_scores[10]))
+            print("F1-score (weighted) = {:.2f}".format(self.f1_scores[11]))
             print("predictor initialized...")
             self.predictions = cg.predict(self.Y_test)  # y_test
             print(self.predictions.shape)
             print(self.predictions)
-            print("Runtime for SVM = {:.2f}".format(time.process_time() - self.start))
+            print("Runtime for boosted classifier = {:.2f} min".format((time.process_time() - self.start)/60.))
         elif alg == 'rf':
-            print("implementing random forest classifier...")
+            print("training with random forest classifier...")
+            self.start = time.process_time()
             rf = RandomForestClassifier(n_estimators=200, random_state=42)
             rf.fit(self.X_train, train_labels)
             val_prediction = rf.predict(self.X_test)  # back-testing
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'macro'))
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction, 'weighted'))
-            print("F1-score (micro) = {:.2f}".format(self.f1_scores[0]))
-            print("F1-score (macro) = {:.2f}".format(self.f1_scores[1]))
-            print("F1-score (weighted) = {:.2f}".format(self.f1_scores[2]))
+            print("F1-score (micro) = {:.2f}".format(self.f1_scores[12]))
+            print("F1-score (macro) = {:.2f}".format(self.f1_scores[13]))
+            print("F1-score (weighted) = {:.2f}".format(self.f1_scores[14]))
             print("predictor initialized...")
             self.predictions = rf.predict(self.Y_test)
             print(self.predictions.shape)
             print(self.predictions)
-            print("Runtime for SVM = {:.2f}".format(time.process_time() - self.start))
+            print("Runtime for random forest = {:.2f} min".format((time.process_time() - self.start)/60.))
+        else:
+            raise ValueError  # unknown classifier passed
 
         with open(output, "w") as file:
             for score in self.predictions:
@@ -199,9 +206,28 @@ class Classifiers:
     def get_f1_score(truth, predict, mode='micro'):
         return f1_score(truth, predict, average=mode)
 
+    @staticmethod
+    def plot(y):
+        filename = "f1-score.png"
+        x = np.array([1, 2, 3, 4, 5])
+        x_ticks = ['svm', 'decision-tree', 'knn', 'boosted-classifier', 'random-forest']
+        y1 = np.array([y[0], y[3], y[6], y[9], y[12]])  # micro
+        y2 = np.array([y[1], y[4], y[7], y[10], y[13]])  # macro
+        y3 = np.array([y[2], y[5], y[8], y[11], y[14]])  # weighted
+        plt.xticks(x, x_ticks)
+        plt.plot(x, y1, label='micro')
+        plt.plot(x, y2, label='macro')
+        plt.plot(x, y3, label='weighted')
+        plt.legend(loc='best')
+        plt.savefig(filename)
+
 
 if __name__ == '__main__':
     classifier = Classifiers("adult_train_CS584.csv", "adult_test_CS584.csv")
     classifier.vectorize()
-    # classifier.train('bc', "prediction_boosted_classifier.txt")
+    classifier.train(output='prediction-svm.txt')
+    classifier.train('dt', 'prediction_decision_tree.txt')
+    classifier.train('knn', 'prediction_knn.txt')
+    classifier.train('bc', "prediction_boosted_classifier.txt")
     classifier.train('rf', "prediction_random_forest_classifier.txt")
+    classifier.plot(classifier.f1_scores)
