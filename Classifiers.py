@@ -13,14 +13,16 @@ from sklearn.metrics import f1_score
 lines: list
 train_labels: np.array
 train_features: np.ndarray
+train_features_copy: np.ndarray
 validation_labels: np.array
 validation_features: np.ndarray
+validation_features_copy: np.ndarray
 test_features: np.ndarray
 test_labels: np.array  # predictions
 
 
 def read_dataset(file: str, is_train=True):
-    global lines, train_labels, train_features, test_features, test_labels, validation_labels, validation_features
+    global lines, train_labels, train_features, test_features, test_labels, validation_labels, validation_features, train_features_copy, validation_features_copy
     if is_train:
         with open(file, "r") as csv_file:
             train_data = csv.reader(csv_file)
@@ -39,9 +41,11 @@ def read_dataset(file: str, is_train=True):
             else:
                 classes2.append(0)
         train_labels = np.array(classes)
+        train_features_copy = np.array(train_list)
         train_features = np.array(
             [" ".join(train_list[i][:-1]) for i in range(1, len(train_list))])  # remove the last column
         validation_labels = np.array(classes2)  # used for back-testing
+        validation_features_copy = np.array(validation_list)
         validation_features = np.array([" ".join(validation_list[i][:-1]) for i in range(1, len(validation_list))])
     else:
         with open(file, "r") as csv_file:
@@ -122,12 +126,13 @@ class Classifiers:
             self.predictions = svm.predict(self.Y_test)  # y_test
             print(self.predictions.shape)
             print(self.predictions)
-            print("Runtime for SVM = {:.2f} min".format((time.process_time() - self.start)/60.))
+            print("Runtime for SVM = {:.2f} min".format((time.process_time() - self.start) / 60.))
         elif alg == 'dt':  # decision tree
             print("training with decision tree...")
             self.start = time.process_time()
             predictor = SVC()
-            decision_tree = GridSearchCV(predictor, {'kernel': ('linear', 'rbf'), 'C': [.1, 10], 'gamma': [0.1]})
+            decision_tree = GridSearchCV(predictor,
+                                         {'kernel': ('linear', 'rbf'), 'C': [.1, 10], 'gamma': [0.1], 'tol': [1e-3]})
             decision_tree.fit(self.X_train, train_labels)
             val_prediction = decision_tree.predict(self.X_test)  # back-testing
             self.f1_scores.append(self.get_f1_score(validation_labels, val_prediction))
@@ -140,7 +145,7 @@ class Classifiers:
             self.predictions = decision_tree.predict(self.Y_test)  # y_test
             print(self.predictions.shape)
             print(self.predictions)
-            print("Runtime for decision tree = {:.2f} min".format((time.process_time() - self.start)/60.))
+            print("Runtime for decision tree = {:.2f} min".format((time.process_time() - self.start) / 60.))
         elif alg == 'knn':  # KNN
             print("training with K nearest neighbors ...")
             self.start = time.process_time()
@@ -158,7 +163,7 @@ class Classifiers:
             self.predictions = knn.predict(self.Y_test)  # y_test
             print(self.predictions.shape)
             print(self.predictions)
-            print("Runtime for knn = {:.2f} min".format((time.process_time() - self.start)/60.))
+            print("Runtime for knn = {:.2f} min".format((time.process_time() - self.start) / 60.))
         elif alg == 'bc':  # boosting classifier
             print("training with gradient boosting classifier...")
             self.start = time.process_time()
@@ -177,7 +182,7 @@ class Classifiers:
             self.predictions = cg.predict(self.Y_test)  # y_test
             print(self.predictions.shape)
             print(self.predictions)
-            print("Runtime for boosted classifier = {:.2f} min".format((time.process_time() - self.start)/60.))
+            print("Runtime for boosted classifier = {:.2f} min".format((time.process_time() - self.start) / 60.))
         elif alg == 'rf':
             print("training with random forest classifier...")
             self.start = time.process_time()
@@ -194,7 +199,7 @@ class Classifiers:
             self.predictions = rf.predict(self.Y_test)
             print(self.predictions.shape)
             print(self.predictions)
-            print("Runtime for random forest = {:.2f} min".format((time.process_time() - self.start)/60.))
+            print("Runtime for random forest = {:.2f} min".format((time.process_time() - self.start) / 60.))
         else:
             raise ValueError  # unknown classifier passed
 
@@ -221,13 +226,42 @@ class Classifiers:
         plt.legend(loc='best')
         plt.savefig(filename)
 
+    @staticmethod
+    def fairness_diagnosis():
+        # col 7 and 8 (race, sex)
+        biased_cols = np.array(["race", "sex"])
+        race = []  # from training
+        sex = []
+        for person in train_features_copy:
+            if person[7] == ' White' and person[-1] == " <=50K":
+                race.append(1)
+            elif person[7] != ' White' and person[-1] == " <=50K":
+                race.append(0)
+            if person[8] == " Male" and person[-1] == " <=50K":
+                sex.append(1)
+            elif person[8] != " Male" and person[-1] == " <=50K":
+                sex.append(0)
+        race = np.array(race)
+        sex = np.array(sex)
+        whites = np.array([i for i in race if i == 1])
+        non_whites = np.array([i for i in race if i == 0])
+        males = [i for i in sex if i == 1]
+        females = [i for i in sex if i == 0]
+        print("white: {:.2f}%\t non-white: {:.2f}%".format(np.sum(whites) / train_features_copy.shape[0] * 100.,
+                                                             (int(race.shape[0]) - np.sum(whites)) /
+                                                             train_features_copy.shape[0] * 100.))
+        print("Male: {:.2f}%\t Female: {:.2f}%".format(np.sum(males) / train_features_copy.shape[0] * 100.,
+                                                         (int(sex.shape[0]) - np.sum(males)) /
+                                                         train_features_copy.shape[0] * 100.))
+
 
 if __name__ == '__main__':
     classifier = Classifiers("adult_train_CS584.csv", "adult_test_CS584.csv")
     classifier.vectorize()
-    classifier.train(output='prediction-svm.txt')
-    classifier.train('dt', 'prediction_decision_tree.txt')
-    classifier.train('knn', 'prediction_knn.txt')
-    classifier.train('bc', "prediction_boosted_classifier.txt")
-    classifier.train('rf', "prediction_random_forest_classifier.txt")
-    classifier.plot(classifier.f1_scores)
+    classifier.fairness_diagnosis()
+    # classifier.train(output='prediction-svm.txt')
+    # classifier.train('dt', 'prediction_decision_tree.txt')
+    # classifier.train('knn', 'prediction_knn.txt')
+    # classifier.train('bc', "prediction_boosted_classifier.txt")
+    # classifier.train('rf', "prediction_random_forest_classifier.txt")
+    # classifier.plot(classifier.f1_scores)
