@@ -1,3 +1,7 @@
+'''
+@author Michael A.
+'''
+
 import csv
 import time
 import numpy as np
