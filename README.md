@@ -5,7 +5,7 @@ Classifiers used in this test are:
 1. SVM
 2. Random Forest (RF)
 3. Decision Tree
-4. K-nearst neighbor
+4. K-nearest neighbor
 5. Boosting Classifier
 
 Here are the results I was able to obtain.
